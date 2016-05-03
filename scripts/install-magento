@@ -1,0 +1,100 @@
+#!/bin/sh
+
+# Create a 'magento' account with password 'magento' to own the source files.
+useradd -m -s /bin/bash -p $(openssl passwd -1 ${MAGENTO_PASSWORD}) -G sudo ${MAGENTO_USER}
+
+# Add the Apache virtual host file
+cp /scripts/install-magento-magento.conf /etc/apache2/sites-enabled/magento.conf
+
+# Load the sample database
+mkdir /magento2
+chown ${MAGENTO_USER}:${MAGENTO_GROUP} /magento2
+cd /magento2
+
+echo '{"http-basic":{"repo.magento.com":{"username":"'$MAGENTO_REPO_USERNAME'","password":"'$MAGENTO_REPO_PASSWORD'"}}}' > auth.json
+sudo -u ${MAGENTO_USER} cp /scripts/install-magento-composer.json composer.json
+sudo -u ${MAGENTO_USER} sh -c 'COMPOSER_HOME=. composer install'
+rm auth.json
+
+# Add readme files so the directories are not empty (making PHP Storm remote
+# file syncing able to pick up the empty directories.)
+
+mkdir -p README-code.txt /magento2/app/code
+echo 'Code for locally developed modules goes in this directory.' \
+	> /magento2/app/code/README.txt
+
+mkdir -p /magento2/app/i18n
+echo 'Language packs for translations go into this directory.' \
+	> /magento2/app/i18n/README.txt
+
+mkdir -p /magento2/app/design/frontend
+echo 'Store front themes go under this directory.'
+	> /magento2/app/design/frontend/README.txt
+
+mkdir -p /magento2/app/design/adminhtml
+echo 'Themes for administration interfaces go under this directory.' \
+	> /magento2/app/design/adminhtml/README.txt
+
+
+# Overwrite apache config file to use /magento2 instead of /var/www/html
+cp /scripts/install-magento-apache2.conf /etc/apache2/apache2.conf
+
+
+# Fix up file permissions.
+cd /magento2
+find . -type d -exec chmod 770 {} \;
+find . -type f -exec chmod 660 {} \;
+chmod ug+x bin/magento
+chown -R ${MAGENTO_USER}:${MAGENTO_GROUP} .
+
+# Run Apache as user 'magento' as well.
+sed -i -e 's/www-data/magento/g' /etc/apache2/envvars
+sed -i -e 's/www-data/magento/g' /etc/apache2/apache2.conf
+
+/usr/local/bin/mysql-start.sh mysqld
+sleep 5
+
+# Install Magento and load sample data.
+sudo -u ${MAGENTO_USER} bin/magento setup:install --backend-frontname=admin \
+	--cleanup-database --db-host=127.0.0.1 \
+	--db-name=magento --db-user=magento --db-password=magento \
+	--admin-firstname=Magento --admin-lastname=User \
+	--admin-email=user@example.com \
+	--admin-user=admin --admin-password=admin123 --language=en_US \
+	--currency=USD --timezone=America/Chicago --use-rewrites=1 \
+	--use-sample-data
+
+# Trigger index rebuilds to make sure everything is ready before
+# web server starts (reduces warnings in admin UI about indexes not
+# being up to date)
+sudo -u ${MAGENTO_USER} bin/magento cron:run
+sudo -u ${MAGENTO_USER} bin/magento cron:run
+
+# Deploy static view assets to make the start up phase faster.
+sudo -u ${MAGENTO_USER} bin/magento setup:static-content:deploy
+
+# Set developer mode
+sudo -u ${MAGENTO_USER} bin/magento deploy:mode:set developer
+
+# Above commands result in 'localhost' being in cached files - clear
+# the cache to lose that setting.
+sudo -u ${MAGENTO_USER} rm -rf var/cache
+
+sleep 5
+
+# Set up cron jobs
+service cron start
+
+(
+    echo "*/1 * * * * /usr/local/bin/php -c /usr/local/etc/php/php.ini /magento2/bin/magento cron:run"
+    echo "*/1 * * * * /usr/local/bin/php -c /usr/local/etc/php/php.ini /magento2/update/cron.php"
+    echo "*/1 * * * * /usr/local/bin/php -c /usr/local/etc/php/php.ini /magento2/bin/magento setup:cron:run"
+) | crontab -u ${MAGENTO_USER} -
+
+# Set up .bashrc file
+sudo -u ${MAGENTO_USER} sh -c "echo 'export PATH=\${PATH}:/magento2/bin' >> /home/magento/.bashrc"
+sudo -u ${MAGENTO_USER} sh -c "echo 'PS1=m2$\ ' >> /home/magento/.bashrc"
+echo 'if [ $PPID == 0 ]; then exec sudo -u magento bash ; fi' >> /root/.bashrc
+
+# Stop MySQL gracefully
+/usr/local/bin/mysql.server stop

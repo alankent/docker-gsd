@@ -1,0 +1,7 @@
+#!/bin/sh
+
+apt-get update
+apt-get install -yq samba gettext
+mv /etc/samba/smb.conf /etc/samba/smb.conf.bak
+
+cp /scripts/install-samba-smb.conf /etc/samba/smb.conf

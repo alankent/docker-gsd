@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation
+         ="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+  <body>
+    <!-- Note, "header.links" only present in Luma theme, so this extra
+         admin link is only displayed when Luma theme selected. -->
+    <referenceBlock name="header.links">
+      <block class="Magento\Framework\View\Element\Html\Link"
+             name="admin-link">
+        <arguments>
+          <argument name="label" xsi:type="string">Admin</argument>
+          <argument name="path" xsi:type="string">admin</argument>
+        </arguments>
+      </block>
+      <!-- A trailing slash is appended, causing path to not match.
+      <block class="Magento\Framework\View\Element\Html\Link"
+             name="mixin-docs-link">
+        <arguments>
+          <argument name="label" xsi:type="string">Less Mixin Library</argument>
+          <argument name="path" xsi:type="string">pub/static/frontend/Magento/blank/en_US/css/docs/index.html</argument>
+        </arguments>
+      </block>
+      -->
+    </referenceBlock>
+  </body>
+</page>
+

@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# Install MariaDB 10.0 instead of MySQL 5.6 as MySQL does not appear available
+# any more via apt-get according to error message.
+# The following was adapted from:
+# https://github.com/docker-library/mariadb/blob/2a8c48a54d8210241861740ea76b5aedf4da681f/10.0/Dockerfile
+
+# Expects environment variables:
+#  MARIADB_MAJOR
+#  MARIADB_VERSION
+
+cp /scripts/install-mysql-mysql-start.sh /usr/local/bin/mysql-start.sh
+chmod +x /usr/local/bin/mysql-start.sh
+
+cp /scripts/install-mysql-mysql.server /usr/local/bin/mysql.server
+chmod +x /usr/local/bin/mysql.server
+
+# add our user and group first to make sure their IDs get assigned
+# consistently, regardless of whatever dependencies get added
+groupadd -r mysql && useradd -r -g mysql mysql
+mkdir /docker-entrypoint-initdb.d
+apt-key adv --keyserver ha.pool.sks-keyservers.net --recv-keys 199369E5404BD5FC7D2FE43BCBCB082A1BB943DB
+echo "deb http://ftp.osuosl.org/pub/mariadb/repo/$MARIADB_MAJOR/debian jessie main" > /etc/apt/sources.list.d/mariadb.list
+
+{
+    echo 'Package: *';
+    echo 'Pin: release o=MariaDB';
+    echo 'Pin-Priority: 999';
+} > /etc/apt/preferences.d/mariadb
+
+{
+    echo mariadb-server-$MARIADB_MAJOR mysql-server/root_password password 'unused';
+    echo mariadb-server-$MARIADB_MAJOR mysql-server/root_password_again password 'unused';
+} | debconf-set-selections
+
+apt-get update
+apt-get install -y mariadb-server=$MARIADB_VERSION
+rm -rf /var/lib/apt/lists/*
+rm -rf /var/lib/mysql
+mkdir /var/lib/mysql
+sed -Ei 's/^(bind-address|log)/#&/' /etc/mysql/my.cnf
+echo 'skip-host-cache\nskip-name-resolve' | awk '{ print } $1 == "[mysqld]" && c == 0 { c = 1; system("cat") }' /etc/mysql/my.cnf > /tmp/my.cnf
+mv /tmp/my.cnf /etc/mysql/my.cnf
+chmod +x /usr/local/bin/mysql-start.sh
+chmod +x /usr/local/bin/mysql.server

@@ -1,0 +1,14 @@
+gsd:
+  image: alankent/gsd
+  ports:
+    - "80:80"
+    - "3000:3000"
+    - "3001:3001"
+    - "135:135"
+    - "139:139"
+    - "445:445"
+    - "2222:22"
+  environment:
+    - SAMBA_START=1
+  volumes:
+    - ~/.composer:/home/magento/.composer
