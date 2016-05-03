@@ -74,8 +74,6 @@ ENV MAGENTO_REPO_USERNAME ""
 ENV MAGENTO_REPO_PASSWORD ""
 
 # Install Gulp
-#TODO
-ADD install-gulp /scripts/install-gulp
 RUN sh -x /scripts/install-gulp
 EXPOSE 3000
 EXPOSE 3001
