@@ -1,6 +1,0 @@
-#!/bin/sh
-
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y install openssh-server
-rm -rf /var/lib/apt/lists/*
-mkdir -p /var/run/sshd
